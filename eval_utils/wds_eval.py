@@ -1,25 +1,40 @@
 """Evaluate on standard classification webdatasets."""
 
 import os
+from typing import List, Tuple
 
 import open_clip
 import torch
 from clip_benchmark.datasets.builder import build_dataset
 from clip_benchmark.metrics import zeroshot_classification as zsc
+from .chimera_clip import ChimeraCLIP
 from sklearn.metrics import balanced_accuracy_score
 
+# name = "chimera_clip ViT-L-14/datacomp_xl_s13b_b90k+ViT-L-14/commonpool_xl_laion_s13b_b90k"
+
+def parse_names(name: str):
+    models = []
+    for model in name.split("+"):
+        arch, pretrained = model.split("/")
+        models.append((arch, pretrained))
+    return models
 
 def create_model(model_arch, model_path):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     torch.manual_seed(0)
 
-    model_path = str(model_path)
-    model, _, transform = open_clip.create_model_and_transforms(
-        model_arch, pretrained=model_path
-    )
-    model.eval()
-    # model.half()
-    model = model.to(device)
+    if model_arch == "chimera_clip":
+        models = parse_names(model_path)
+        model = ChimeraCLIP(models=models, device=device)
+        transform = model.preprocessors[0]
+    else:
+        model_path = str(model_path)
+        model, _, transform = open_clip.create_model_and_transforms(
+            model_arch, pretrained=model_path
+        )
+        model.eval()
+        # model.half()
+        model = model.to(device)
 
     return model, transform, device
 
