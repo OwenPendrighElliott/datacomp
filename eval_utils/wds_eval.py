@@ -10,8 +10,6 @@ from clip_benchmark.metrics import zeroshot_classification as zsc
 from .chimera_clip import ChimeraCLIP
 from sklearn.metrics import balanced_accuracy_score
 
-# name = "chimera_clip ViT-L-14/datacomp_xl_s13b_b90k+ViT-L-14/commonpool_xl_laion_s13b_b90k"
-
 def parse_names(name: str):
     models = []
     for model in name.split("+"):
@@ -20,10 +18,12 @@ def parse_names(name: str):
     return models
 
 def create_model(model_arch, model_path):
+    print(model_arch, model_path)
     device = "cuda" if torch.cuda.is_available() else "cpu"
     torch.manual_seed(0)
 
-    if model_arch == "chimera_clip":
+    if model_path.startswith("chimera_clip"):
+        _, model_path = model_path.split("::")
         models = parse_names(model_path)
         model = ChimeraCLIP(models=models, device=device)
         transform = model.preprocessors[0]
