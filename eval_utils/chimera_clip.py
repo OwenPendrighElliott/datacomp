@@ -1,5 +1,6 @@
 import open_clip
 import torch
+import torch.nn.functional as F
 from typing import List, Tuple
 
 class ChimeraCLIP():
@@ -27,16 +28,53 @@ class ChimeraCLIP():
     def encode_image(self, images, normalize: bool = True):
         latents = []
         for model in self.clip_models:
-            latent = model.encode_image(images)
+            latent = model.encode_image(images, normalize=normalize)
             latents.append(latent)
         
-        return torch.cat(latents, dim=-1)
+        concat = torch.cat(latents, dim=-1)
+
+        if normalize:
+            concat = F.normalize(concat, dim=-1)
+
+        return concat
 
     def encode_text(self, text, normalize: bool = True):
         latents = []
         for model in self.clip_models:
-            latent = model.encode_text(text)
+            latent = model.encode_text(text, normalize=normalize)
             latents.append(latent)
         
-        return torch.cat(latents, dim=-1)
+        concat = torch.cat(latents, dim=-1)
+
+        if normalize:
+            concat = F.normalize(concat, dim=-1)
+
+        return concat
+
+    def e2e_encode_text(self, texts: List[str], normalize: bool = True):
+        latents = []
+        for model, tokenizer in zip(self.clip_models, self.tokenizers):
+            tokens = tokenizer(texts, return_tensors="pt", padding=True, truncation=True)
+            latent = model.encode_text(tokens, normalize=normalize)
+            latents.append(latent)
+        
+        concat = torch.cat(latents, dim=-1)
+
+        if normalize:
+            concat = F.normalize(concat, dim=-1)
+
+        return concat
+
+    def e2e_encode_image(self, images, normalize: bool = True):
+        latents = []
+        for model, transform in zip(self.clip_models, self.preprocessors):
+            latent = model.encode_image(transform(images), normalize=normalize)
+            latents.append(latent)
+        
+        concat = torch.cat(latents, dim=-1)
+
+        if normalize:
+            concat = F.normalize(concat, dim=-1)
+
+        return concat
     

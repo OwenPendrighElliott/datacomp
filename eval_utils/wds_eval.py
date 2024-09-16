@@ -22,8 +22,7 @@ def create_model(model_arch, model_path):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     torch.manual_seed(0)
 
-    if model_path.startswith("chimera_clip"):
-        _, model_path = model_path.split("::")
+    if model_arch == "chimera_clip":
         models = parse_names(model_path)
         model = ChimeraCLIP(models=models, device=device)
         transform = model.preprocessors[0]
@@ -80,6 +79,9 @@ def evaluate_webdataset(
 
     # Create model
     model, transform, device = create_model(model_arch, model_path)
+    tokenizer = None
+    if not isinstance(model, ChimeraCLIP):
+        tokenizer = open_clip.get_tokenizer(model_arch)
 
     # Load data
     dataset, dataloader = create_webdataset(
@@ -95,7 +97,7 @@ def evaluate_webdataset(
     # Evaluate
     classifier = zsc.zero_shot_classifier(
         model,
-        open_clip.get_tokenizer(model_arch),
+        tokenizer,
         classnames,
         zeroshot_templates,
         device,

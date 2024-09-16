@@ -10,6 +10,7 @@ import torch
 # from collections import Counter
 from sklearn.metrics import jaccard_score
 from tqdm import tqdm
+from .chimera_clip import ChimeraCLIP
 
 from .wds_eval import create_model
 
@@ -41,7 +42,9 @@ def evaluate_winogavil_dataset(
     model_arch, model_path, data_root=None, num_workers=4, batch_size=None
 ):
     model, transform, device = create_model(model_arch, model_path)
-    tokenizer = open_clip.get_tokenizer(model_arch)
+    tokenizer = None
+    if not isinstance(model, open_clip.ChimeraCLIP):
+        tokenizer = open_clip.get_tokenizer(model_arch)
 
     # Load data
     dataset = WinoDataset(
@@ -73,10 +76,16 @@ def evaluate_winogavil_dataset(
         n_assoc = y_true.sum()
         # Featurize
         with torch.no_grad(), torch.cuda.amp.autocast():
-            image_features = model.encode_image(images.to(device), normalize=True)
-            text_features = model.encode_text(text.to(device), normalize=True)
-            # Compute similarities
-            image_logits = (text_features @ image_features.T).squeeze(0).cpu().numpy()
+            if isinstance(model, ChimeraCLIP):
+                image_features = model.e2e_encode_image(images.to(device))
+                text_features = model.e2e_encode_text(text.to(device))
+                # Compute similarities
+                image_logits = (text_features @ image_features.T).squeeze(0).cpu().numpy()
+            else:
+                image_features = model.encode_image(images.to(device), normalize=True)
+                text_features = model.encode_text(text.to(device), normalize=True)
+                # Compute similarities
+                image_logits = (text_features @ image_features.T).squeeze(0).cpu().numpy()
         # Select topk
         topk_indices = np.argsort(image_logits)[-n_assoc:]
         y_pred = np.isin(np.arange(n_images), topk_indices)
