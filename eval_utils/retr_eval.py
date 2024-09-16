@@ -5,8 +5,8 @@ import os
 import datasets
 import open_clip
 import torch
-from clip_benchmark.datasets.builder import image_captions_collate_fn
-from clip_benchmark.metrics import zeroshot_retrieval as zsr
+from .clip_benchmark.datasets.builder import image_captions_collate_fn
+from .clip_benchmark.metrics import zeroshot_retrieval as zsr
 from .wds_eval import create_model
 from .chimera_clip import ChimeraCLIP
 
