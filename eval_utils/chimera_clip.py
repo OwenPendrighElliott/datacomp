@@ -54,7 +54,7 @@ class ChimeraCLIP():
     def e2e_encode_text(self, texts: List[str], normalize: bool = True):
         latents = []
         for model, tokenizer in zip(self.clip_models, self.tokenizers):
-            tokens = tokenizer(texts, return_tensors="pt", padding=True, truncation=True)
+            tokens = tokenizer(texts)
             latent = model.encode_text(tokens, normalize=normalize)
             latents.append(latent)
         
