@@ -118,7 +118,6 @@ def run_classification(model, classifier, dataloader, device, amp=True):
             if isinstance(model, ChimeraCLIP):
                 with autocast():
                     image_features = model.e2e_encode_image(images)
-                    image_features = image_features.cpu()
                     logits = 100. * image_features @ classifier
                 true.append(target.cpu())
                 pred.append(logits.float().cpu())
