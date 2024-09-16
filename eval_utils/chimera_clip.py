@@ -69,8 +69,8 @@ class ChimeraCLIP():
     def e2e_encode_image(self, images, normalize: bool = True):
         latents = []
         for model, transform in zip(self.clip_models, self.preprocessors):
-            images = [transform(img).to(self.device) for img in images]
-            latent = model.encode_image(images, normalize=normalize)
+            transformed_images = torch.stack([transform(img) for img in images]).to(self.device)
+            latent = model.encode_image(transformed_images, normalize=normalize)
             latents.append(latent)
         
         concat = torch.cat(latents, dim=-1)
