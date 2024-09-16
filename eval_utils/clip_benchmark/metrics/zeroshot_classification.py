@@ -50,13 +50,14 @@ def zero_shot_classifier(model, tokenizer, classnames, templates, device, amp=Tr
                 texts = [template.format(c=classname) for template in templates]
             else:
                 raise ValueError("templates must be a list or a dict")
-            texts = tokenizer(texts).to(device)  # tokenize
+            
             if isinstance(model, ChimeraCLIP):
                 class_embeddings = model.e2e_encode_text(texts)
                 class_embedding = F.normalize(class_embeddings, dim=-1).mean(dim=0)
                 class_embedding /= class_embedding.norm()
                 zeroshot_weights.append(class_embedding)
             else:
+                texts = tokenizer(texts).to(device)  # tokenize
                 class_embeddings = model.encode_text(texts)
                 class_embedding = F.normalize(class_embeddings, dim=-1).mean(dim=0)
                 class_embedding /= class_embedding.norm()
