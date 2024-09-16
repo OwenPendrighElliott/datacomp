@@ -9,6 +9,7 @@ class ChimeraCLIP():
         models: List[Tuple[str]],
         device = "cpu"
     ):
+        self.device = device
         self.clip_models = []
         self.preprocessors = []
         self.tokenizers = []
@@ -16,7 +17,7 @@ class ChimeraCLIP():
             model, _, transform = open_clip.create_model_and_transforms(
                 arch, pretrained=pretrained
             )
-            model = model.to(device)
+            model = model.to(self.device)
             model.eval()
             tokenizer = open_clip.get_tokenizer(arch)
             
@@ -54,7 +55,7 @@ class ChimeraCLIP():
     def e2e_encode_text(self, texts: List[str], normalize: bool = True):
         latents = []
         for model, tokenizer in zip(self.clip_models, self.tokenizers):
-            tokens = tokenizer(texts)
+            tokens = tokenizer(texts).to(self.device)
             latent = model.encode_text(tokens, normalize=normalize)
             latents.append(latent)
         
@@ -68,7 +69,7 @@ class ChimeraCLIP():
     def e2e_encode_image(self, images, normalize: bool = True):
         latents = []
         for model, transform in zip(self.clip_models, self.preprocessors):
-            latent = model.encode_image(transform(images), normalize=normalize)
+            latent = model.encode_image(transform(images).to(self.device), normalize=normalize)
             latents.append(latent)
         
         concat = torch.cat(latents, dim=-1)
