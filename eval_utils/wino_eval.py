@@ -87,8 +87,8 @@ def evaluate_winogavil_dataset(
         # Featurize
         with torch.no_grad(), torch.cuda.amp.autocast():
             if isinstance(model, E2ECLIP):
-                image_features = model.e2e_encode_image(images.to(device))
-                text_features = model.e2e_encode_text(text.to(device))
+                image_features = model.e2e_encode_image(images)
+                text_features = model.e2e_encode_text(text)
                 # Compute similarities
                 image_logits = (text_features @ image_features.T).squeeze(0).cpu().numpy()
             else:
