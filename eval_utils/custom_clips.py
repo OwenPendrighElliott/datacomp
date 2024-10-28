@@ -244,7 +244,7 @@ class CohereCLIP(E2ECLIP):
                 print(e)
                 continue
 
-        embeddings = resp['embeddings']['float']
+        embeddings = resp.embeddings
         tensor_embeddings = torch.tensor(embeddings, dtype=torch.float32, device=self.device)
 
         if normalize:
