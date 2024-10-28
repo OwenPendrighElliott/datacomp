@@ -7,7 +7,7 @@ import open_clip
 import torch
 from clip_benchmark.datasets.builder import build_dataset
 from clip_benchmark.metrics import zeroshot_classification as zsc
-from .chimera_clip import ChimeraCLIP
+from .custom_clips import ChimeraCLIP, TransformersCLIP
 from sklearn.metrics import balanced_accuracy_score
 
 def parse_names(name: str):
@@ -27,6 +27,9 @@ def create_model(model_arch, model_path):
         models = parse_names(model_path)
         model = ChimeraCLIP(models=models, device=device)
         transform = model.preprocessors[0]
+    if model_path.startswith("jinaai"):
+        model = TransformersCLIP(model_path, device=device)
+        transform = model.preprocessor
     else:
         model_path = str(model_path)
         model, _, transform = open_clip.create_model_and_transforms(
