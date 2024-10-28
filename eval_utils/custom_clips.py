@@ -101,11 +101,13 @@ class ChimeraCLIP(E2ECLIP):
         return concat
 
 class TransformersCLIP(E2ECLIP):
-    def __init__(self, model: str):
+    def __init__(self, model: str, device = "cpu"):
         self.clip_model = AutoModel.from_pretrained(model, trust_remote_code=True)
+        self.device = device
+        self.clip_model.to(self.device)
 
     def encode_image(self, images, normalize: bool = True):
-        embedding = self.clip_model.encode_image(images) # np.array
+        embedding = self.clip_model.encode_image(images, device=self.device) # np.array
 
         if normalize:
             embedding = embedding / np.linalg.norm(embedding, axis=1, keepdims=True)
@@ -114,7 +116,7 @@ class TransformersCLIP(E2ECLIP):
 
     
     def encode_text(self, text, normalize: bool = True):
-        embedding = self.clip_model.encode_text(text) # np.array
+        embedding = self.clip_model.encode_text(text, device=self.device) # np.array
 
         if normalize:
             embedding = embedding / np.linalg.norm(embedding, axis=1, keepdims=True)
