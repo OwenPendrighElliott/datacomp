@@ -46,8 +46,15 @@ def evaluate_winogavil_dataset(
     if not isinstance(model, E2ECLIP):
         tokenizer = open_clip.get_tokenizer(model_arch)
 
-    if transform is None:
-        transform = lambda x: x
+    if transform is not None:
+        wino_image_transform = lambda imgs: torch.stack([transform(img) for img in imgs])
+    else:
+        wino_image_transform = None
+
+    if tokenizer is not None:
+        wino_text_transform = lambda text: tokenizer([get_clip_prompt(text)])
+    else:
+        wino_text_transform = None
 
     # Load data
     dataset = WinoDataset(
@@ -58,8 +65,8 @@ def evaluate_winogavil_dataset(
             if data_root is not None
             else None,
         ),
-        transform=lambda imgs: torch.stack([transform(img) for img in imgs]),
-        text_transform=lambda text: tokenizer([get_clip_prompt(text)]),
+        transform=wino_image_transform,
+        text_transform=wino_text_transform
     )
     dataloader = torch.utils.data.DataLoader(
         dataset,
