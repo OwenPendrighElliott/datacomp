@@ -163,9 +163,9 @@ class CohereCLIP(E2ECLIP):
         self.device = device
 
         per_second_limit_text_buffer = 100
-        self.per_second_limit_text = (2000-per_second_limit_text_buffer)/60
+        self.per_second_rate_limit_text = (2000-per_second_limit_text_buffer)/60
         per_second_limit_image_buffer = 3
-        self.per_second_limit_image = (40-per_second_limit_image_buffer)/60
+        self.per_second_rate_limit_image = (40-per_second_limit_image_buffer)/60
 
         self.retry_limit = 12
 
@@ -198,8 +198,8 @@ class CohereCLIP(E2ECLIP):
         embeddings = []
         
         for im in processed_images:
-            if time.time() - self.last_image_time < self.per_second_limit_image:
-                time.sleep(self.per_second_limit_image - (time.time() - self.last_image_time))
+            if time.time() - self.last_image_time < self.per_second_rate_limit_image:
+                time.sleep(self.per_second_rate_limit_image)
 
             for i in range(self.retry_limit):
                 try:
@@ -226,9 +226,9 @@ class CohereCLIP(E2ECLIP):
         return tensor_embeddings
     
     def encode_text(self, text, normalize: bool = True):
-        if time.time() - self.last_text_time < self.per_second_limit_text:
-            time.sleep(self.per_second_limit_text - (time.time() - self.last_text_time))
-
+        
+        if time.time() - self.last_text_time < self.per_second_rate_limit_text:
+            time.sleep(self.per_second_rate_limit_text)
 
         for i in range(self.retry_limit):
             try:
