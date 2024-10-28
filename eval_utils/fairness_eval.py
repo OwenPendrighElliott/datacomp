@@ -1,6 +1,7 @@
 from collections import defaultdict
 from contextlib import suppress
 
+from .custom_clips import E2ECLIP
 from .wds_eval import *
 from .wilds_eval import *
 
@@ -243,6 +244,9 @@ def evaluate_fairface_dataset(
 
     # Create model
     model, transform, device = create_model(model_arch, model_path)
+    tokenizer = None
+    if not isinstance(model, E2ECLIP):
+        tokenizer = open_clip.get_tokenizer(model_arch)
 
     # Load data
     dataset, _ = create_webdataset(
@@ -291,7 +295,7 @@ def evaluate_fairface_dataset(
         classifiers.append(
             zsc.zero_shot_classifier(
                 model,
-                open_clip.get_tokenizer(model_arch),
+                tokenizer,
                 info["classnames"],
                 info["zeroshot_templates"],
                 device,
@@ -336,16 +340,24 @@ def run_multilabel_classification(model, classifier, dataloader, device, amp=Tru
     nb = 0
     with torch.no_grad():
         for images, target in tqdm(dataloader):
-            images = images.to(device)
-            target = target.to(device)
+            if isinstance(model, E2ECLIP):
+                with autocast():
+                    image_features = model.e2e_encode_image(images)
+                    image_features = image_features.cpu()
+                    logits = 100.0 * torch.einsum("bf,mfc->bmc", image_features, classifier)
+                true.append(target.cpu())
+                pred.append(logits.float().cpu())
+            else:
+                images = images.to(device)
+                target = target.to(device)
 
-            with autocast():
-                # predict
-                image_features = model.encode_image(images, normalize=True)
-                logits = 100.0 * torch.einsum("bf,mfc->bmc", image_features, classifier)
+                with autocast():
+                    # predict
+                    image_features = model.encode_image(images, normalize=True)
+                    logits = 100.0 * torch.einsum("bf,mfc->bmc", image_features, classifier)
 
-            true.append(target.cpu())
-            pred.append(logits.float().cpu())
+                true.append(target.cpu())
+                pred.append(logits.float().cpu())
 
     pred = torch.cat(pred)
     true = torch.cat(true)

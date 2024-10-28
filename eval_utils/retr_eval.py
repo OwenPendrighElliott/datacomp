@@ -5,10 +5,10 @@ import os
 import datasets
 import open_clip
 import torch
-from clip_benchmark.datasets.builder import image_captions_collate_fn
-from clip_benchmark.metrics import zeroshot_retrieval as zsr
-
+from .clip_benchmark.datasets.builder import image_captions_collate_fn
+from .clip_benchmark.metrics import zeroshot_retrieval as zsr
 from .wds_eval import create_model
+from .custom_clips import E2ECLIP
 
 
 class RetrievalDataset(torch.utils.data.Dataset):
@@ -33,7 +33,9 @@ def evaluate_retrieval_dataset(
     """Evaluate CLIP model on retrieval task."""
 
     model, transform, device = create_model(model_arch, model_path)
-    tokenizer = open_clip.get_tokenizer(model_arch)
+    tokenizer = None
+    if not isinstance(model, E2ECLIP):
+        tokenizer = open_clip.get_tokenizer(model_arch)
 
     dataset = RetrievalDataset(
         datasets.load_dataset(
