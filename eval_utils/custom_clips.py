@@ -199,7 +199,7 @@ class CohereCLIP(E2ECLIP):
         
         for im in processed_images:
             if time.time() - self.last_image_time < self.per_second_rate_limit_image:
-                time.sleep(self.per_second_rate_limit_image)
+                time.sleep(1/self.per_second_rate_limit_image)
 
             for i in range(self.retry_limit):
                 try:
@@ -228,7 +228,7 @@ class CohereCLIP(E2ECLIP):
     def encode_text(self, text, normalize: bool = True):
         
         if time.time() - self.last_text_time < self.per_second_rate_limit_text:
-            time.sleep(self.per_second_rate_limit_text)
+            time.sleep(1/self.per_second_rate_limit_text)
 
         for i in range(self.retry_limit):
             try:
