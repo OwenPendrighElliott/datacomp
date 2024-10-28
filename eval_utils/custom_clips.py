@@ -126,7 +126,7 @@ class TransformersCLIP(E2ECLIP):
     def e2e_encode_text(self, text: str, normalize: bool = True) -> torch.Tensor:
         embedding = self.encode_text(text, normalize=normalize)
 
-        return torch.tensor(embedding, dtype=torch.float32)
+        return torch.tensor(embedding, dtype=torch.float32, device=self.device)
     
     def e2e_encode_image(self, images, normalize: bool = True) -> torch.Tensor:
         # if the image is a torch tensor then place it on cpu and convert to pil image
@@ -146,4 +146,4 @@ class TransformersCLIP(E2ECLIP):
 
         embedding = self.encode_image(images, normalize=normalize)
 
-        return torch.tensor(embedding, dtype=torch.float32)
+        return torch.tensor(embedding, dtype=torch.float32, device=self.device)
