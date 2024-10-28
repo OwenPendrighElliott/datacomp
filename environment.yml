@@ -168,7 +168,7 @@ dependencies:
       - torch==1.13.0
       - torchvision==0.14.0
       - tqdm==4.64.1
-      - transformers==4.24.0
+      - transformers==4.46.0
       - typeguard==2.13.3
       - typing-extensions==4.4.0
       - urllib3==1.26.12
@@ -182,3 +182,4 @@ dependencies:
       - xxhash==3.2.0
       - yarl==1.8.2
       - zipp==3.10.0
+      - einops

@@ -12,16 +12,16 @@ class E2ECLIP():
         pass
 
     def encode_image(self, images, normalize: bool = True):
-        pass
+        raise NotImplementedError()
 
     def encode_text(self, text, normalize: bool = True):
-        pass
+        raise NotImplementedError()
 
     def e2e_encode_text(self, texts: List[str], normalize: bool = True) -> torch.Tensor:
-        pass
+        raise NotImplementedError()
 
     def e2e_encode_image(self, images, normalize: bool = True) -> torch.Tensor:
-        pass
+        raise NotImplementedError()
 
 class ChimeraCLIP(E2ECLIP):
     def __init__(
@@ -121,12 +121,12 @@ class TransformersCLIP(E2ECLIP):
 
         return embedding
     
-    def encode_text_e2e(self, text: str, normalize: bool = True) -> torch.Tensor:
+    def e2e_encode_text(self, text: str, normalize: bool = True) -> torch.Tensor:
         embedding = self.encode_text(text, normalize=normalize)
 
         return torch.tensor(embedding, dtype=torch.float32)
     
-    def encode_image_e2e(self, images, normalize: bool = True) -> torch.Tensor:
+    def e2e_encode_image(self, images, normalize: bool = True) -> torch.Tensor:
         # if the image is a torch tensor then place it on cpu and convert to pil image
         if isinstance(images, torch.Tensor):
             images = images.cpu().numpy()
