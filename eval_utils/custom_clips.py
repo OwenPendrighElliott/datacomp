@@ -200,7 +200,7 @@ class CohereCLIP(E2ECLIP):
         resp = self.co.embed(
             model=self.model,
             texts=text,
-            input_type='text'
+            input_type='search_query'
         )
 
         embeddings = resp['embeddings']['float']
