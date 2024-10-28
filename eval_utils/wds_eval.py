@@ -7,7 +7,7 @@ import open_clip
 import torch
 from .clip_benchmark.datasets.builder import build_dataset
 from .clip_benchmark.metrics import zeroshot_classification as zsc
-from .custom_clips import ChimeraCLIP, TransformersCLIP, E2ECLIP
+from .custom_clips import ChimeraCLIP, JinaCLIP, CohereCLIP, E2ECLIP
 from sklearn.metrics import balanced_accuracy_score
 
 def parse_names(name: str):
@@ -26,8 +26,11 @@ def create_model(model_arch, model_path):
         models = parse_names(model_path)
         model = ChimeraCLIP(models=models, device=device)
         transform = None
-    elif model_arch == "transformers":
-        model = TransformersCLIP(model_path, device=device)
+    elif model_arch == "jina_clip":
+        model = JinaCLIP(model_path, device=device)
+        transform = None
+    elif model_arch == "cohere":
+        model = CohereCLIP(model_path, device=device)
         transform = None
     else:
         model_path = str(model_path)

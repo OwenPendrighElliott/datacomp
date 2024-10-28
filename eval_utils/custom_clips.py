@@ -104,7 +104,7 @@ class ChimeraCLIP(E2ECLIP):
 
         return concat
 
-class TransformersCLIP(E2ECLIP):
+class JinaCLIP(E2ECLIP):
     def __init__(self, model: str, device = "cpu"):
         self.clip_model = AutoModel.from_pretrained(model, trust_remote_code=True)
         self.device = device
@@ -213,10 +213,8 @@ class CohereCLIP(E2ECLIP):
     
     def e2e_encode_text(self, text: str, normalize: bool = True) -> torch.Tensor:
         embedding = self.encode_text(text, normalize=normalize)
-
         return embedding
     
     def e2e_encode_image(self, images, normalize: bool = True) -> torch.Tensor:
         embedding = self.encode_image(images, normalize=normalize)
-
         return embedding
