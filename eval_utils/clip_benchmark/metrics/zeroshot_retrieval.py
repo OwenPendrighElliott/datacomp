@@ -53,6 +53,7 @@ def evaluate(model, dataloader, tokenizer,  device, amp=True, recall_k_list=[5])
                 batch_texts_emb = model.e2e_encode_text(flat_batched_texts)
             batch_images_emb_list.append(batch_images_emb.cpu())
             batch_texts_emb_list.append(batch_texts_emb.cpu())
+            texts_image_index.extend(batch_texts_image_index)
     else:
         for batch_images, batch_texts, inds in tqdm(dataloader):
             batch_images = batch_images.to(device)
