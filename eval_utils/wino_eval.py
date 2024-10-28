@@ -46,6 +46,9 @@ def evaluate_winogavil_dataset(
     if not isinstance(model, E2ECLIP):
         tokenizer = open_clip.get_tokenizer(model_arch)
 
+    if transform is None:
+        transform = lambda x: x
+
     # Load data
     dataset = WinoDataset(
         datasets.load_dataset(
