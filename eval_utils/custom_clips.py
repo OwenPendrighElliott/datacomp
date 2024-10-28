@@ -199,7 +199,7 @@ class CohereCLIP(E2ECLIP):
     def encode_text(self, text, normalize: bool = True):
         resp = self.co.embed(
             model=self.model,
-            text=text,
+            texts=text,
             input_type='text'
         )
 
