@@ -2,8 +2,12 @@ import open_clip
 import torch
 import torch.nn.functional as F
 import numpy as np
+import cohere
+import os
 from PIL import Image
 from transformers import AutoModel
+from io import BytesIO
+import base64
 from typing import List, Tuple
 
 
@@ -106,6 +110,9 @@ class TransformersCLIP(E2ECLIP):
         self.device = device
         self.clip_model.to(self.device)
 
+        if not hasattr(self.clip_model, "encode_image") or not hasattr(self.clip_model, "encode_text"):
+            raise ValueError("Model does not have encode_image or encode_text methods")
+
     def encode_image(self, images, normalize: bool = True):
         embedding = self.clip_model.encode_image(images, device=self.device) # np.array
 
@@ -147,3 +154,69 @@ class TransformersCLIP(E2ECLIP):
         embedding = self.encode_image(images, normalize=normalize)
 
         return torch.tensor(embedding, dtype=torch.float32, device=self.device)
+    
+
+class CohereCLIP(E2ECLIP):
+    def __init__(self, model: str, device: str = "cpu"):
+        self.model = model
+        self.device = device
+
+        if not os.getenv("COHERE_API_KEY"):
+            raise ValueError("COHERE_API_KEY environment variable not set")
+
+        self.co = cohere.Client(api_key=os.getenv("COHERE_API_KEY"))
+
+    def _image_to_base64_data_url(self, image: str):
+        if isinstance(image, np.ndarray):
+            image = Image.fromarray(image)
+        elif isinstance(image, torch.Tensor):
+            image = image.cpu().numpy()
+            image = Image.fromarray(image)
+
+        with BytesIO() as output:
+            image.save(output, format="PNG")
+            enc_img = base64.b64encode(output.getvalue()).decode('utf-8')
+            enc_img = f"data:image/png;base64,{enc_img}"
+        return enc_img
+
+    def encode_image(self, images, normalize: bool = True):
+        processed_images = [self._image_to_base64_data_url(img) for img in images]
+
+        resp = self.co.embed(
+            model=self.model,
+            images=processed_images,
+            input_type='image'
+        )
+
+        embeddings = resp['embeddings']['float']
+        tensor_embeddings = torch.tensor(embeddings, dtype=torch.float32, device=self.device)
+
+        if normalize:
+            tensor_embeddings = F.normalize(tensor_embeddings, dim=-1)
+
+        return tensor_embeddings
+    
+    def encode_text(self, text, normalize: bool = True):
+        resp = self.co.embed(
+            model=self.model,
+            text=text,
+            input_type='text'
+        )
+
+        embeddings = resp['embeddings']['float']
+        tensor_embeddings = torch.tensor(embeddings, dtype=torch.float32, device=self.device)
+
+        if normalize:
+            tensor_embeddings = F.normalize(tensor_embeddings, dim=-1)
+
+        return tensor_embeddings
+    
+    def e2e_encode_text(self, text: str, normalize: bool = True) -> torch.Tensor:
+        embedding = self.encode_text(text, normalize=normalize)
+
+        return embedding
+    
+    def e2e_encode_image(self, images, normalize: bool = True) -> torch.Tensor:
+        embedding = self.encode_image(images, normalize=normalize)
+
+        return embedding

@@ -31,6 +31,10 @@ def create_model(model_arch, model_path):
         transform = None
     else:
         model_path = str(model_path)
+
+        if model_arch.startswith("hf-hub:"):
+            model_path=None
+
         model, _, transform = open_clip.create_model_and_transforms(
             model_arch, pretrained=model_path
         )
