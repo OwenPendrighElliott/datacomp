@@ -25,13 +25,13 @@ def create_model(model_arch, model_path):
     if model_arch == "chimera_clip":
         models = parse_names(model_path)
         model = ChimeraCLIP(models=models, device=device)
-        transform = None
+        transform = model.transform
     elif model_arch == "jina_clip":
         model = JinaCLIP(model_path, device=device)
-        transform = None
+        transform = model.transform
     elif model_arch == "cohere":
         model = CohereCLIP(model_path, device=device)
-        transform = None
+        transform = model.transform
     else:
         model_path = str(model_path)
 

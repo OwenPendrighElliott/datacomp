@@ -1,5 +1,6 @@
 import open_clip
 import torch
+from torchvision import transforms
 import torch.nn.functional as F
 import numpy as np
 import time
@@ -12,9 +13,18 @@ import base64
 from typing import List, Tuple
 
 
+PLACEHOLDER_TRANSFORM = transforms.Compose([
+    transforms.Resize(512),
+    transforms.ToTensor()
+])
+
+def default_transform(image):
+    tensor = PLACEHOLDER_TRANSFORM(image)
+    return tensor
+
 class E2ECLIP():
     def __init__(self):
-        pass
+        self.transform = default_transform
 
     def encode_image(self, images, normalize: bool = True):
         raise NotImplementedError()
