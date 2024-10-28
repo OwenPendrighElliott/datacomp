@@ -102,7 +102,7 @@ class ChimeraCLIP(E2ECLIP):
 
 class TransformersCLIP(E2ECLIP):
     def __init__(self, model: str):
-        self.clip_model = AutoModel.from_pretrained(model)
+        self.clip_model = AutoModel.from_pretrained(model, trust_remote_code=True)
 
     def encode_image(self, images, normalize: bool = True):
         embedding = self.clip_model.encode_image(images) # np.array
