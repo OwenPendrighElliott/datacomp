@@ -2,6 +2,7 @@ import open_clip
 import torch
 import torch.nn.functional as F
 import numpy as np
+import time
 import cohere
 import os
 from PIL import Image
@@ -161,6 +162,18 @@ class CohereCLIP(E2ECLIP):
         self.model = model
         self.device = device
 
+        per_second_limit_text_buffer = 100
+        self.per_second_limit_text = (2000-per_second_limit_text_buffer)/60
+        per_second_limit_image_buffer = 3
+        self.per_second_limit_image = (40-per_second_limit_image_buffer)/60
+
+        self.retry_limit = 12
+
+        self.retry_delay = 5
+
+        self.last_text_time = 0
+        self.last_image_time = 0
+
         if not os.getenv("COHERE_API_KEY"):
             raise ValueError("COHERE_API_KEY environment variable not set")
 
@@ -182,13 +195,29 @@ class CohereCLIP(E2ECLIP):
     def encode_image(self, images, normalize: bool = True):
         processed_images = [self._image_to_base64_data_url(img) for img in images]
 
-        resp = self.co.embed(
-            model=self.model,
-            images=processed_images,
-            input_type='image'
-        )
+        embeddings = []
+        
+        for im in processed_images:
+            if time.time() - self.last_image_time < self.per_second_limit_image:
+                time.sleep(self.per_second_limit_image - (time.time() - self.last_image_time))
 
-        embeddings = resp['embeddings']['float']
+            for i in range(self.retry_limit):
+                try:
+                    resp = self.co.embed(
+                        model=self.model,
+                        images=[im],
+                        input_type='image'
+                    )
+                    self.last_image_time = time.time()
+                    break
+                except Exception as e:
+                    time.sleep(self.retry_delay)
+                    print(e)
+                    continue
+
+            embedding = resp.embeddings[0]
+            embeddings.append(embedding)
+
         tensor_embeddings = torch.tensor(embeddings, dtype=torch.float32, device=self.device)
 
         if normalize:
@@ -197,11 +226,23 @@ class CohereCLIP(E2ECLIP):
         return tensor_embeddings
     
     def encode_text(self, text, normalize: bool = True):
-        resp = self.co.embed(
-            model=self.model,
-            texts=text,
-            input_type='search_query'
-        )
+        if time.time() - self.last_text_time < self.per_second_limit_text:
+            time.sleep(self.per_second_limit_text - (time.time() - self.last_text_time))
+
+
+        for i in range(self.retry_limit):
+            try:
+                resp = self.co.embed(
+                    model=self.model,
+                    texts=text,
+                    input_type='search_query'
+                )
+                self.last_text_time = time.time()
+                break
+            except Exception as e:
+                time.sleep(self.retry_delay)
+                print(e)
+                continue
 
         embeddings = resp['embeddings']['float']
         tensor_embeddings = torch.tensor(embeddings, dtype=torch.float32, device=self.device)
