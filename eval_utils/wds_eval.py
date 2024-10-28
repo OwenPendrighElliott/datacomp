@@ -27,7 +27,7 @@ def create_model(model_arch, model_path):
         model = ChimeraCLIP(models=models, device=device)
         transform = None
     elif model_arch == "transformers":
-        model = TransformersCLIP(model_path)
+        model = TransformersCLIP(model_path, device=device)
         transform = None
     else:
         model_path = str(model_path)
