@@ -803,8 +803,13 @@ def _extract_task(dataset_name):
 
 def image_captions_collate_fn(batch):
     transposed = list(zip(*batch))
-    imgs = default_collate(transposed[0])
+    if isinstance(transposed[0][0], torch.Tensor):
+        imgs = default_collate(transposed[0])
+    else:
+        imgs = transposed[0]
+        
     texts = transposed[1]
+
     return imgs, texts
 
 def get_dataset_collection_from_file(path):

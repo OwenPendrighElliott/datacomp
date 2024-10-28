@@ -46,10 +46,11 @@ def evaluate(model, dataloader, tokenizer,  device, amp=True, recall_k_list=[5])
 
     if isinstance(model, E2ECLIP):
         for batch_images, batch_texts, inds in tqdm(dataloader):
+            flat_batched_texts = [text for i, texts in enumerate(batch_texts) for text in texts]
             batch_texts_image_index = [ind for ind, texts in zip(inds, batch_texts) for text in texts]
             with torch.no_grad(), autocast():
                 batch_images_emb = model.e2e_encode_image(batch_images)
-                batch_texts_emb = model.e2e_encode_text(batch_texts)
+                batch_texts_emb = model.e2e_encode_text(flat_batched_texts)
             batch_images_emb_list.append(batch_images_emb.cpu())
             batch_texts_emb_list.append(batch_texts_emb.cpu())
     else:
