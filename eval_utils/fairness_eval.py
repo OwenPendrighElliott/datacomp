@@ -343,7 +343,6 @@ def run_multilabel_classification(model, classifier, dataloader, device, amp=Tru
             if isinstance(model, E2ECLIP):
                 with autocast():
                     image_features = model.e2e_encode_image(images)
-                    image_features = image_features.cpu()
                     logits = 100.0 * torch.einsum("bf,mfc->bmc", image_features, classifier)
                 true.append(target.cpu())
                 pred.append(logits.float().cpu())
