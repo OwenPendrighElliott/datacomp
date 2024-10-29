@@ -12,8 +12,21 @@ from io import BytesIO
 import base64
 from typing import List, Tuple
 
+class ResizeIfLarger:
+    """Resize an image if it is larger than a certain size"""
+    def __init__(self, max_size):
+        self.max_size = max_size
+
+    def __call__(self, img):
+        width, height = img.size
+    
+        if max(width, height) > self.max_size:
+            img = transforms.Resize(self.max_size)(img)
+        
+        return img
+
 DEFAULT_TRANSFORM = transforms.Compose([
-    transforms.Resize(512),
+    ResizeIfLarger(512),
 ])
 
 class E2ECLIP():
