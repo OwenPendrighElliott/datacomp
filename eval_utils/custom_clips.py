@@ -1,6 +1,7 @@
 import open_clip
 import torch
 import torch.nn.functional as F
+from torchvision import transforms
 import numpy as np
 import time
 import cohere
@@ -11,10 +12,13 @@ from io import BytesIO
 import base64
 from typing import List, Tuple
 
+DEFAULT_TRANSFORM = transforms.Compose([
+    transforms.Resize(512),
+])
 
 class E2ECLIP():
     def __init__(self):
-        pass
+        self.transform = DEFAULT_TRANSFORM
 
     def encode_image(self, images, normalize: bool = True):
         raise NotImplementedError()
