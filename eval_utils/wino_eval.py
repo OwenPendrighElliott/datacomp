@@ -45,6 +45,8 @@ def evaluate_winogavil_dataset(
     tokenizer = None
     if not isinstance(model, E2ECLIP):
         tokenizer = open_clip.get_tokenizer(model_arch)
+    
+    if isinstance(model, E2ECLIP):
         transform = None
 
     if transform is not None:
