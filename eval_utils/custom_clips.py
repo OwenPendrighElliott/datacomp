@@ -124,7 +124,7 @@ class JinaCLIP(E2ECLIP):
         embedding = self.clip_model.encode_image(images, device=self.device) # np.array
 
         if normalize:
-            embedding = embedding / np.linalg.norm(embedding, axis=1, keepdims=True)
+            embedding = embedding / np.linalg.norm(embedding, axis=-1, keepdims=True)
 
         return embedding
 
@@ -133,7 +133,7 @@ class JinaCLIP(E2ECLIP):
         embedding = self.clip_model.encode_text(text, device=self.device) # np.array
 
         if normalize:
-            embedding = embedding / np.linalg.norm(embedding, axis=1, keepdims=True)
+            embedding = embedding / np.linalg.norm(embedding, axis=-1, keepdims=True)
 
         return embedding
     
