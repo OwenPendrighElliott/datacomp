@@ -38,6 +38,7 @@ class ChimeraCLIP(E2ECLIP):
         models: List[Tuple[str]],
         device = "cpu"
     ):
+        super().__init__()
         self.device = device
         self.clip_models = []
         self.preprocessors = []
@@ -111,6 +112,7 @@ class ChimeraCLIP(E2ECLIP):
 
 class JinaCLIP(E2ECLIP):
     def __init__(self, model: str, device = "cpu"):
+        super().__init__()
         self.clip_model = AutoModel.from_pretrained(model, trust_remote_code=True)
         self.device = device
         self.clip_model.to(self.device)
@@ -163,6 +165,7 @@ class JinaCLIP(E2ECLIP):
 
 class CohereCLIP(E2ECLIP):
     def __init__(self, model: str, device: str = "cpu"):
+        super().__init__()
         self.model = model
         self.device = device
 
