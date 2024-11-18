@@ -320,7 +320,7 @@ class AmazonTitanEmbedV1(E2ECLIP):
                     }
 
                     response = self.bedrock_runtime.invoke_model(
-                        body=body,
+                        body=json.dumps(body),
                         modelId=self.model,
                         accept="application/json",
                         contentType="application/json"
@@ -357,7 +357,7 @@ class AmazonTitanEmbedV1(E2ECLIP):
                     }
 
                     response = self.bedrock_runtime.invoke_model(
-                        body=body,
+                        body=json.dumps(body),
                         modelId=self.model,
                         accept="application/json",
                         contentType="application/json"
