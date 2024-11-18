@@ -374,7 +374,7 @@ class AmazonTitanEmbedV1(E2ECLIP):
                     print(e)
                     continue
 
-        tensor_embeddings = torch.tensor(embeddings, dtype=torch.float32, device=self.device)
+        tensor_embedding = torch.tensor(embeddings, dtype=torch.float32, device=self.device)
 
         if normalize:
             tensor_embedding = F.normalize(tensor_embedding, dim=-1)
