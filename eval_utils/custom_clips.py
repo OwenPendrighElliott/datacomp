@@ -348,29 +348,33 @@ class AmazonTitanEmbedV1(E2ECLIP):
         if time.time() - self.last_text_time < self.per_second_rate_limit_text:
             time.sleep(1/self.per_second_rate_limit_text)
 
-        for i in range(self.retry_limit):
-            try:
-                body = {
-                    "inputText": text
-                }
+        embeddings = []
+        for text_example in text:
+            for i in range(self.retry_limit):
+                try:
+                    body = {
+                        "inputText": text_example
+                    }
 
-                response = self.bedrock_runtime.invoke_model(
-                    body=body,
-                    modelId=self.model,
-                    accept="application/json",
-                    contentType="application/json"
-                )
+                    response = self.bedrock_runtime.invoke_model(
+                        body=body,
+                        modelId=self.model,
+                        accept="application/json",
+                        contentType="application/json"
+                    )
 
-                response_body = json.loads(response.get("body").read())
+                    response_body = json.loads(response.get("body").read())
 
-                embedding = response_body["embedding"]
-                tensor_embedding = torch.tensor(embedding, dtype=torch.float32, device=self.device)
-                self.last_text_time = time.time()
-                break
-            except Exception as e:
-                time.sleep(self.retry_delay)
-                print(e)
-                continue
+                    embedding = response_body["embedding"]
+                    embeddings.append(embedding)
+                    self.last_text_time = time.time()
+                    break
+                except Exception as e:
+                    time.sleep(self.retry_delay)
+                    print(e)
+                    continue
+
+        tensor_embeddings = torch.tensor(embeddings, dtype=torch.float32, device=self.device)
 
         if normalize:
             tensor_embedding = F.normalize(tensor_embedding, dim=-1)
