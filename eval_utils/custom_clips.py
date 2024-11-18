@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from torchvision import transforms
 import numpy as np
 import time
+import requests
 import boto3
 import json
 import cohere
@@ -388,6 +389,22 @@ class GoogleMultimodalEmbed(E2ECLIP):
 
         self.google_model = MultiModalEmbeddingModel.from_pretrained(model)
 
+       
+
+        # we use the URL for image requests because the vertex python client is cursed and has no documented way to use base64...
+        self.url = f'https://{os.getenv("GCP_LOCATION")}-aiplatform.googleapis.com/v1/projects/{os.getenv("GCP_PROJECT")}/locations/{os.getenv("GCP_LOCATION")}/publishers/google/models/{self.model}:predict'
+        from google.auth.transport.requests import Request
+        import google.auth
+
+        credentials, project = google.auth.default()
+        credentials.refresh(Request())
+        self.access_token = credentials.token
+
+        self.headers = { 
+            "Authorization": f"Bearer {self.access_token}",
+            "Content-Type": "application/json"
+        }
+
         self.retry_limit = 12
         self.retry_delay = 5
         self.last_text_time = 0
@@ -408,13 +425,15 @@ class GoogleMultimodalEmbed(E2ECLIP):
 
             for i in range(self.retry_limit):
                 try:
-                    resp = self.google_model.get_embeddings(
-                        image=im,
-                        dimension=self.embedding_dimension,
-                    )
-
-                    image_embedding = resp.image_embedding
-                    embeddings.append(image_embedding)
+                    instances = [{"image": {"bytesBase64Encoded": im}}]
+                    request_body = {
+                        "instances": instances
+                    }
+                    response = requests.post(self.url, headers=self.headers, json=request_body)
+                    result = response.json()
+                    preds = result["predictions"]
+                    embedding = preds[0]["image_embedding"]
+                    embeddings.append(embedding)
                     self.last_image_time = time.time()
                     break
                 except Exception as e:
