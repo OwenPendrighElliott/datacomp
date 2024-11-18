@@ -313,6 +313,8 @@ class AmazonTitanEmbedV1(E2ECLIP):
             if time.time() - self.last_image_time < self.per_second_rate_limit_image:
                 time.sleep(1/self.per_second_rate_limit_image)
 
+            image = image.split(",")[1]
+
             for i in range(self.retry_limit):
                 try:
                     body = {
