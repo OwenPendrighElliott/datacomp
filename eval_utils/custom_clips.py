@@ -297,22 +297,12 @@ class AmazonTitanEmbedV1(E2ECLIP):
 
         self.retry_limit = 12
         self.retry_delay = 5
-        self.last_text_time = 0
-        self.last_image_time = 0
-        per_second_limit_text_buffer = 100
-        self.per_second_rate_limit_text = (20000-per_second_limit_text_buffer)/60
-        per_second_limit_image_buffer = 100
-        self.per_second_rate_limit_image = (20000-per_second_limit_image_buffer)/60
-    
 
     def encode_image(self, images, normalize: bool = True):
         processed_images = [self._image_to_base64_data_url(img) for img in images]
 
         embeddings = []
         for image in processed_images:
-            if time.time() - self.last_image_time < self.per_second_rate_limit_image:
-                time.sleep(1/self.per_second_rate_limit_image)
-
             image = image.split(",")[1]
 
             for i in range(self.retry_limit):
@@ -332,7 +322,6 @@ class AmazonTitanEmbedV1(E2ECLIP):
 
                     embedding = response_body["embedding"]
                     embeddings.append(embedding)
-                    self.last_image_time = time.time()
                     break
                 except Exception as e:
                     time.sleep(self.retry_delay)
@@ -347,9 +336,6 @@ class AmazonTitanEmbedV1(E2ECLIP):
         return tensor_embeddings
 
     def encode_text(self, text, normalize: bool = True):
-        if time.time() - self.last_text_time < self.per_second_rate_limit_text:
-            time.sleep(1/self.per_second_rate_limit_text)
-
         embeddings = []
         for text_example in text:
             for i in range(self.retry_limit):
@@ -369,7 +355,6 @@ class AmazonTitanEmbedV1(E2ECLIP):
 
                     embedding = response_body["embedding"]
                     embeddings.append(embedding)
-                    self.last_text_time = time.time()
                     break
                 except Exception as e:
                     time.sleep(self.retry_delay)
