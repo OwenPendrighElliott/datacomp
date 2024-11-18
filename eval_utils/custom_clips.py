@@ -300,9 +300,9 @@ class AmazonTitanEmbedV1(E2ECLIP):
         self.last_text_time = 0
         self.last_image_time = 0
         per_second_limit_text_buffer = 100
-        self.per_second_rate_limit_text = (2000-per_second_limit_text_buffer)/60
+        self.per_second_rate_limit_text = (20000-per_second_limit_text_buffer)/60
         per_second_limit_image_buffer = 100
-        self.per_second_rate_limit_image = (40-per_second_limit_image_buffer)/60
+        self.per_second_rate_limit_image = (20000-per_second_limit_image_buffer)/60
     
 
     def encode_image(self, images, normalize: bool = True):
