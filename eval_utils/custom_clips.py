@@ -4,7 +4,11 @@ import torch.nn.functional as F
 from torchvision import transforms
 import numpy as np
 import time
+import boto3
+import json
 import cohere
+import vertexai
+from vertexai.vision_models import Image, MultiModalEmbeddingModel
 import os
 from PIL import Image
 from transformers import AutoModel
@@ -44,6 +48,19 @@ class E2ECLIP():
 
     def e2e_encode_image(self, images, normalize: bool = True) -> torch.Tensor:
         raise NotImplementedError()
+
+    def _image_to_base64_data_url(self, image: str):
+        if isinstance(image, np.ndarray):
+            image = Image.fromarray(image)
+        elif isinstance(image, torch.Tensor):
+            image = image.cpu().numpy()
+            image = Image.fromarray(image)
+
+        with BytesIO() as output:
+            image.save(output, format="PNG")
+            enc_img = base64.b64encode(output.getvalue()).decode('utf-8')
+            enc_img = f"data:image/png;base64,{enc_img}"
+        return enc_img
 
 class ChimeraCLIP(E2ECLIP):
     def __init__(
@@ -199,19 +216,6 @@ class CohereCLIP(E2ECLIP):
 
         self.co = cohere.Client(api_key=os.getenv("COHERE_API_KEY"))
 
-    def _image_to_base64_data_url(self, image: str):
-        if isinstance(image, np.ndarray):
-            image = Image.fromarray(image)
-        elif isinstance(image, torch.Tensor):
-            image = image.cpu().numpy()
-            image = Image.fromarray(image)
-
-        with BytesIO() as output:
-            image.save(output, format="PNG")
-            enc_img = base64.b64encode(output.getvalue()).decode('utf-8')
-            enc_img = f"data:image/png;base64,{enc_img}"
-        return enc_img
-
     def encode_image(self, images, normalize: bool = True):
         processed_images = [self._image_to_base64_data_url(img) for img in images]
 
@@ -279,3 +283,195 @@ class CohereCLIP(E2ECLIP):
     def e2e_encode_image(self, images, normalize: bool = True) -> torch.Tensor:
         embedding = self.encode_image(images, normalize=normalize)
         return embedding
+
+
+class AmazonTitanEmbedV1(E2ECLIP):
+    def __init__(self, model: str, device: str = "cpu"):
+        super().__init__()
+        self.device = device
+        self.model = model
+        self.bedrock_runtime = boto3.client(
+            service_name='bedrock-runtime',
+            region_name=os.getenv("AWS_REGION"),
+        )
+
+        self.retry_limit = 12
+        self.retry_delay = 5
+        self.last_text_time = 0
+        self.last_image_time = 0
+        per_second_limit_text_buffer = 100
+        self.per_second_rate_limit_text = (2000-per_second_limit_text_buffer)/60
+        per_second_limit_image_buffer = 100
+        self.per_second_rate_limit_image = (40-per_second_limit_image_buffer)/60
+    
+
+    def encode_image(self, images, normalize: bool = True):
+        processed_images = [self._image_to_base64_data_url(img) for img in images]
+
+        embeddings = []
+        for image in processed_images:
+            if time.time() - self.last_image_time < self.per_second_rate_limit_image:
+                time.sleep(1/self.per_second_rate_limit_image)
+
+            for i in range(self.retry_limit):
+                try:
+                    body = {
+                        "inputImage": image
+                    }
+
+                    response = self.bedrock_runtime.invoke_model(
+                        body=body,
+                        modelId=self.model,
+                        accept="application/json",
+                        contentType="application/json"
+                    )
+
+                    response_body = json.loads(response.get("body").read())
+
+                    embedding = response_body["embedding"]
+                    embeddings.append(embedding)
+                    self.last_image_time = time.time()
+                    break
+                except Exception as e:
+                    time.sleep(self.retry_delay)
+                    print(e)
+                    continue
+
+        tensor_embeddings = torch.tensor(embeddings, dtype=torch.float32, device=self.device)
+
+        if normalize:
+            tensor_embeddings = F.normalize(tensor_embeddings, dim=-1)
+
+        return tensor_embeddings
+
+    def encode_text(self, text, normalize: bool = True):
+        if time.time() - self.last_text_time < self.per_second_rate_limit_text:
+            time.sleep(1/self.per_second_rate_limit_text)
+
+        for i in range(self.retry_limit):
+            try:
+                body = {
+                    "inputText": text
+                }
+
+                response = self.bedrock_runtime.invoke_model(
+                    body=body,
+                    modelId=self.model,
+                    accept="application/json",
+                    contentType="application/json"
+                )
+
+                response_body = json.loads(response.get("body").read())
+
+                embedding = response_body["embedding"]
+                tensor_embedding = torch.tensor(embedding, dtype=torch.float32, device=self.device)
+                self.last_text_time = time.time()
+                break
+            except Exception as e:
+                time.sleep(self.retry_delay)
+                print(e)
+                continue
+
+        if normalize:
+            tensor_embedding = F.normalize(tensor_embedding, dim=-1)
+
+        return tensor_embedding
+
+    def e2e_encode_text(self, text: str, normalize: bool = True) -> torch.Tensor:
+        embedding = self.encode_text(text, normalize=normalize)
+        return embedding
+
+    def e2e_encode_image(self, images, normalize: bool = True) -> torch.Tensor:
+        embedding = self.encode_image(images, normalize=normalize)
+        return embedding
+
+
+class GoogleMultimodalEmbed(E2ECLIP):
+    def __init__(self, model: str, device: str = "cpu"):
+        super().__init__()
+        self.device = device
+        self.model = model
+
+        vertexai.init(project=os.getenv("GCP_PROJECT"), location=os.getenv("GCP_LOCATION"))
+        self.embedding_dimension = 1408
+
+        self.google_model = MultiModalEmbeddingModel.from_pretrained(model)
+
+        self.retry_limit = 12
+        self.retry_delay = 5
+        self.last_text_time = 0
+        self.last_image_time = 0
+        per_second_limit_text_buffer = 2
+        self.per_second_rate_limit_text = (120-per_second_limit_text_buffer)/60
+        per_second_limit_image_buffer = 2
+        self.per_second_rate_limit_image = (120-per_second_limit_image_buffer)/60
+
+    def encode_image(self, images, normalize: bool = True):
+        processed_images = [self._image_to_base64_data_url(img) for img in images]
+
+        embeddings = []
+        
+        for im in processed_images:
+            if time.time() - self.last_image_time < self.per_second_rate_limit_image:
+                time.sleep(1/self.per_second_rate_limit_image)
+
+            for i in range(self.retry_limit):
+                try:
+                    resp = self.google_model.get_embeddings(
+                        image=im,
+                        dimension=self.embedding_dimension,
+                    )
+
+                    image_embedding = resp.image_embedding
+                    embeddings.append(image_embedding)
+                    self.last_image_time = time.time()
+                    break
+                except Exception as e:
+                    time.sleep(self.retry_delay)
+                    print(e)
+                    continue
+
+        tensor_embeddings = torch.tensor(embeddings, dtype=torch.float32, device=self.device)
+
+        if normalize:
+            tensor_embeddings = F.normalize(tensor_embeddings, dim=-1)
+
+        return tensor_embeddings
+
+    def encode_text(self, text, normalize: bool = True):
+        if time.time() - self.last_text_time < self.per_second_rate_limit_text:
+            time.sleep(1/self.per_second_rate_limit_text)
+
+        embeddings = []
+        for txt in text:
+            for i in range(self.retry_limit):
+                try:
+                    resp = self.google_model.get_embeddings(
+                        contextual_text=txt,
+                        dimension=self.embedding_dimension,
+                    )
+
+                    text_embedding = resp.text_embedding
+                    embeddings.append(text_embedding)
+                    self.last_text_time = time.time()
+                    break
+                except Exception as e:
+                    time.sleep(self.retry_delay)
+                    print(e)
+                    continue
+        
+        tensor_embeddings = torch.tensor(embeddings, dtype=torch.float32, device=self.device)
+
+        if normalize:
+            tensor_embeddings = F.normalize(tensor_embeddings, dim=-1)
+
+        return tensor_embeddings
+
+    def e2e_encode_text(self, text: str, normalize: bool = True) -> torch.Tensor:
+        embedding = self.encode_text(text, normalize=normalize)
+        return embedding
+
+    def e2e_encode_image(self, images, normalize: bool = True) -> torch.Tensor:
+        embedding = self.encode_image(images, normalize=normalize)
+        return embedding
+

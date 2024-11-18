@@ -185,3 +185,5 @@ dependencies:
       - zipp==3.10.0
       - einops
       - cohere
+      - boto3
+      - google-cloud-aiplatform
