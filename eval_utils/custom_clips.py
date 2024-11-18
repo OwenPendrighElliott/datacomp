@@ -4,12 +4,12 @@ import torch.nn.functional as F
 from torchvision import transforms
 import numpy as np
 import time
-import requests
 import boto3
 import json
 import cohere
 import vertexai
-from vertexai.vision_models import Image, MultiModalEmbeddingModel
+from vertexai.vision_models import MultiModalEmbeddingModel
+from vertexai.vision_models import Image as VImage
 import os
 from PIL import Image
 from transformers import AutoModel
@@ -377,8 +377,6 @@ class AmazonTitanEmbedV1(E2ECLIP):
         embedding = self.encode_image(images, normalize=normalize)
         return embedding
 
-from google.oauth2 import service_account
-from google.auth.transport.requests import Request
 
 class GoogleMultimodalEmbed(E2ECLIP):
     def __init__(self, model: str, device: str = "cpu"):
@@ -386,49 +384,19 @@ class GoogleMultimodalEmbed(E2ECLIP):
         self.device = device
         self.model = model
 
-        # Initialize Vertex AI with environment variables
-        self.project_id = os.getenv("GCP_PROJECT")
-        self.location = os.getenv("GCP_LOCATION")
-        self.service_account_file = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+        vertexai.init(project=os.getenv("GCP_PROJECT"), location=os.getenv("GCP_LOCATION"))
         self.embedding_dimension = 1408
 
-        # Initialize Vertex AI SDK
-        vertexai.init(project=self.project_id, location=self.location)
-
-        # Load the model
         self.google_model = MultiModalEmbeddingModel.from_pretrained(model)
 
-        # Construct the API URL
-        self.url = (
-            f'https://{self.location}-aiplatform.googleapis.com/v1/projects/'
-            f'{self.project_id}/locations/{self.location}/publishers/google/'
-            f'models/{self.model}:predict'
-        )
-
-        # Obtain credentials and access token using environment variables
-        SCOPES = ['https://www.googleapis.com/auth/cloud-platform']
-        credentials = service_account.Credentials.from_service_account_file(
-            self.service_account_file, scopes=SCOPES
-        )
-        credentials.refresh(Request())
-        self.access_token = credentials.token
-
-        # Set up headers with the access token
-        self.headers = {
-            "Authorization": f"Bearer {self.access_token}",
-            "Content-Type": "application/json"
-        }
-
-        # Rate limiting and retry parameters
         self.retry_limit = 12
         self.retry_delay = 5
         self.last_text_time = 0
         self.last_image_time = 0
         per_second_limit_text_buffer = 2
-        self.per_second_rate_limit_text = (120 - per_second_limit_text_buffer) / 60
+        self.per_second_rate_limit_text = (120-per_second_limit_text_buffer)/60
         per_second_limit_image_buffer = 2
-        self.per_second_rate_limit_image = (120 - per_second_limit_image_buffer) / 60
-
+        self.per_second_rate_limit_image = (120-per_second_limit_image_buffer)/60
 
     def encode_image(self, images, normalize: bool = True):
         processed_images = [self._image_to_base64_data_url(img) for img in images]
@@ -441,15 +409,19 @@ class GoogleMultimodalEmbed(E2ECLIP):
 
             for i in range(self.retry_limit):
                 try:
-                    instances = [{"image": {"bytesBase64Encoded": im}}]
-                    request_body = {
-                        "instances": instances
-                    }
-                    response = requests.post(self.url, headers=self.headers, json=request_body)
-                    result = response.json()
-                    preds = result["predictions"]
-                    embedding = preds[0]["image_embedding"]
-                    embeddings.append(embedding)
+                    # image to bytes 
+                    im_bytes = base64.b64decode(im.split(",")[1])
+
+                    # this is the worst documented SDK in existence
+                    horrendous_google_sdk_image_object = VImage(image_bytes=im_bytes)
+
+                    resp = self.google_model.get_embeddings(
+                        image=horrendous_google_sdk_image_object,
+                        dimension=self.embedding_dimension,
+                    )
+
+                    image_embedding = resp.image_embedding
+                    embeddings.append(image_embedding)
                     self.last_image_time = time.time()
                     break
                 except Exception as e:
