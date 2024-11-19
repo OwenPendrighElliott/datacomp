@@ -281,8 +281,8 @@ class CohereCLIP(E2ECLIP):
             tensor_embeddings = F.normalize(tensor_embeddings, dim=-1)
         return tensor_embeddings
 
-    def e2e_encode_text(self, text: str, normalize: bool = True) -> torch.Tensor:
-        return self.encode_text([text], normalize=normalize)
+    def e2e_encode_text(self, text, normalize: bool = True) -> torch.Tensor:
+        return self.encode_text(text, normalize=normalize)
 
     def e2e_encode_image(self, images, normalize: bool = True) -> torch.Tensor:
         return self.encode_image(images, normalize=normalize)
@@ -375,8 +375,8 @@ class AmazonTitanEmbedV1(E2ECLIP):
             tensor_embedding = F.normalize(tensor_embedding, dim=-1)
         return tensor_embedding
 
-    def e2e_encode_text(self, text: str, normalize: bool = True) -> torch.Tensor:
-        return self.encode_text([text], normalize=normalize)
+    def e2e_encode_text(self, text, normalize: bool = True) -> torch.Tensor:
+        return self.encode_text(text, normalize=normalize)
 
     def e2e_encode_image(self, images, normalize: bool = True) -> torch.Tensor:
         return self.encode_image(images, normalize=normalize)
@@ -471,8 +471,8 @@ class GoogleMultimodalEmbed(E2ECLIP):
             tensor_embeddings = F.normalize(tensor_embeddings, dim=-1)
         return tensor_embeddings
 
-    def e2e_encode_text(self, text: str, normalize: bool = True) -> torch.Tensor:
-        return self.encode_text([text], normalize=normalize)
+    def e2e_encode_text(self, text, normalize: bool = True) -> torch.Tensor:
+        return self.encode_text(text, normalize=normalize)
 
     def e2e_encode_image(self, images, normalize: bool = True) -> torch.Tensor:
         return self.encode_image(images, normalize=normalize)
