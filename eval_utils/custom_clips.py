@@ -192,7 +192,6 @@ class JinaCLIP(E2ECLIP):
         embedding = self.encode_image(images, normalize=normalize)
 
         return torch.tensor(embedding, dtype=torch.float32, device=self.device)
-    
 
 class CohereCLIP(E2ECLIP):
     def __init__(self, model: str, device: str = "cpu"):
@@ -200,39 +199,46 @@ class CohereCLIP(E2ECLIP):
         self.model = model
         self.device = device
 
+        # Initialize rate limiting parameters
         per_second_limit_text_buffer = 100
-        self.per_second_rate_limit_text = (2000-per_second_limit_text_buffer)/60
+        self.per_second_rate_limit_text = (2000 - per_second_limit_text_buffer) / 60
+        self.min_interval_text = 1 / self.per_second_rate_limit_text
+
         per_second_limit_image_buffer = 3
-        self.per_second_rate_limit_image = (40-per_second_limit_image_buffer)/60
+        self.per_second_rate_limit_image = (40 - per_second_limit_image_buffer) / 60
+        self.min_interval_image = 1 / self.per_second_rate_limit_image
 
         self.retry_limit = 12
-
         self.retry_delay = 5
 
         self.last_text_time = 0
         self.last_image_time = 0
 
-        if not os.getenv("COHERE_API_KEY"):
+        api_key = os.getenv("COHERE_API_KEY")
+        if not api_key:
             raise ValueError("COHERE_API_KEY environment variable not set")
 
-        self.co = cohere.Client(api_key=os.getenv("COHERE_API_KEY"))
+        self.co = cohere.Client(api_key=api_key)
 
     def encode_image(self, images, normalize: bool = True):
         processed_images = [self._image_to_base64_data_url(img) for img in images]
-
         embeddings = []
-        
-        for im in processed_images:
-            if time.time() - self.last_image_time < self.per_second_rate_limit_image:
-                time.sleep(1/self.per_second_rate_limit_image)
 
-            for i in range(self.retry_limit):
+        for im in processed_images:
+            # Rate limiting logic
+            time_since_last = time.time() - self.last_image_time
+            if time_since_last < self.min_interval_image:
+                sleep_duration = self.min_interval_image - time_since_last
+                time.sleep(max(0, sleep_duration))
+
+            for _ in range(self.retry_limit):
                 try:
                     resp = self.co.embed(
                         model=self.model,
                         images=[im],
                         input_type='image'
                     )
+                    embeddings.append(resp.embeddings[0])
                     self.last_image_time = time.time()
                     break
                 except Exception as e:
@@ -240,57 +246,53 @@ class CohereCLIP(E2ECLIP):
                     print(e)
                     continue
 
-            embedding = resp.embeddings[0]
-            embeddings.append(embedding)
-
         tensor_embeddings = torch.tensor(embeddings, dtype=torch.float32, device=self.device)
-
         if normalize:
             tensor_embeddings = F.normalize(tensor_embeddings, dim=-1)
-
         return tensor_embeddings
-    
+
     def encode_text(self, text, normalize: bool = True):
-        
-        if time.time() - self.last_text_time < self.per_second_rate_limit_text:
-            time.sleep(1/self.per_second_rate_limit_text)
+        embeddings = []
 
-        for i in range(self.retry_limit):
-            try:
-                resp = self.co.embed(
-                    model=self.model,
-                    texts=text,
-                    input_type='search_query'
-                )
-                self.last_text_time = time.time()
-                break
-            except Exception as e:
-                time.sleep(self.retry_delay)
-                print(e)
-                continue
+        for txt in text:
+            # Rate limiting logic
+            time_since_last = time.time() - self.last_text_time
+            if time_since_last < self.min_interval_text:
+                sleep_duration = self.min_interval_text - time_since_last
+                time.sleep(max(0, sleep_duration))
 
-        embeddings = resp.embeddings
+            for _ in range(self.retry_limit):
+                try:
+                    resp = self.co.embed(
+                        model=self.model,
+                        texts=[txt],
+                        input_type='search_query'
+                    )
+                    embeddings.append(resp.embeddings[0])
+                    self.last_text_time = time.time()
+                    break
+                except Exception as e:
+                    time.sleep(self.retry_delay)
+                    print(e)
+                    continue
+
         tensor_embeddings = torch.tensor(embeddings, dtype=torch.float32, device=self.device)
-
         if normalize:
             tensor_embeddings = F.normalize(tensor_embeddings, dim=-1)
-
         return tensor_embeddings
-    
-    def e2e_encode_text(self, text: str, normalize: bool = True) -> torch.Tensor:
-        embedding = self.encode_text(text, normalize=normalize)
-        return embedding
-    
-    def e2e_encode_image(self, images, normalize: bool = True) -> torch.Tensor:
-        embedding = self.encode_image(images, normalize=normalize)
-        return embedding
 
+    def e2e_encode_text(self, text: str, normalize: bool = True) -> torch.Tensor:
+        return self.encode_text([text], normalize=normalize)
+
+    def e2e_encode_image(self, images, normalize: bool = True) -> torch.Tensor:
+        return self.encode_image(images, normalize=normalize)
 
 class AmazonTitanEmbedV1(E2ECLIP):
     def __init__(self, model: str, device: str = "cpu"):
         super().__init__()
         self.device = device
         self.model = model
+
         self.bedrock_runtime = boto3.client(
             service_name='bedrock-runtime',
             region_name=os.getenv("AWS_REGION"),
@@ -299,30 +301,36 @@ class AmazonTitanEmbedV1(E2ECLIP):
         self.retry_limit = 12
         self.retry_delay = 5
 
+        # Rate limiting parameters (Assumed values; adjust as needed)
+        self.per_second_rate_limit = 10  # Example limit
+        self.min_interval = 1 / self.per_second_rate_limit
+        self.last_request_time = 0
+
     def encode_image(self, images, normalize: bool = True):
         processed_images = [self._image_to_base64_data_url(img) for img in images]
-
         embeddings = []
+
         for image in processed_images:
-            image = image.split(",")[1]
+            # Rate limiting logic
+            time_since_last = time.time() - self.last_request_time
+            if time_since_last < self.min_interval:
+                sleep_duration = self.min_interval - time_since_last
+                time.sleep(max(0, sleep_duration))
 
-            for i in range(self.retry_limit):
+            image_data = image.split(",")[1]
+
+            for _ in range(self.retry_limit):
                 try:
-                    body = {
-                        "inputImage": image
-                    }
-
+                    body = {"inputImage": image_data}
                     response = self.bedrock_runtime.invoke_model(
                         body=json.dumps(body),
                         modelId=self.model,
                         accept="application/json",
                         contentType="application/json"
                     )
-
                     response_body = json.loads(response.get("body").read())
-
-                    embedding = response_body["embedding"]
-                    embeddings.append(embedding)
+                    embeddings.append(response_body["embedding"])
+                    self.last_request_time = time.time()
                     break
                 except Exception as e:
                     time.sleep(self.retry_delay)
@@ -330,32 +338,32 @@ class AmazonTitanEmbedV1(E2ECLIP):
                     continue
 
         tensor_embeddings = torch.tensor(embeddings, dtype=torch.float32, device=self.device)
-
         if normalize:
             tensor_embeddings = F.normalize(tensor_embeddings, dim=-1)
-
         return tensor_embeddings
 
     def encode_text(self, text, normalize: bool = True):
         embeddings = []
-        for text_example in text:
-            for i in range(self.retry_limit):
-                try:
-                    body = {
-                        "inputText": text_example
-                    }
 
+        for text_example in text:
+            # Rate limiting logic
+            time_since_last = time.time() - self.last_request_time
+            if time_since_last < self.min_interval:
+                sleep_duration = self.min_interval - time_since_last
+                time.sleep(max(0, sleep_duration))
+
+            for _ in range(self.retry_limit):
+                try:
+                    body = {"inputText": text_example}
                     response = self.bedrock_runtime.invoke_model(
                         body=json.dumps(body),
                         modelId=self.model,
                         accept="application/json",
                         contentType="application/json"
                     )
-
                     response_body = json.loads(response.get("body").read())
-
-                    embedding = response_body["embedding"]
-                    embeddings.append(embedding)
+                    embeddings.append(response_body["embedding"])
+                    self.last_request_time = time.time()
                     break
                 except Exception as e:
                     time.sleep(self.retry_delay)
@@ -363,19 +371,15 @@ class AmazonTitanEmbedV1(E2ECLIP):
                     continue
 
         tensor_embedding = torch.tensor(embeddings, dtype=torch.float32, device=self.device)
-
         if normalize:
             tensor_embedding = F.normalize(tensor_embedding, dim=-1)
-
         return tensor_embedding
 
     def e2e_encode_text(self, text: str, normalize: bool = True) -> torch.Tensor:
-        embedding = self.encode_text(text, normalize=normalize)
-        return embedding
+        return self.encode_text([text], normalize=normalize)
 
     def e2e_encode_image(self, images, normalize: bool = True) -> torch.Tensor:
-        embedding = self.encode_image(images, normalize=normalize)
-        return embedding
+        return self.encode_image(images, normalize=normalize)
 
 
 class GoogleMultimodalEmbed(E2ECLIP):
@@ -391,37 +395,41 @@ class GoogleMultimodalEmbed(E2ECLIP):
 
         self.retry_limit = 12
         self.retry_delay = 5
+
+        per_second_limit_text_buffer = 2
+        self.per_second_rate_limit_text = (120 - per_second_limit_text_buffer) / 60
+        self.min_interval_text = 1 / self.per_second_rate_limit_text
+
+        per_second_limit_image_buffer = 2
+        self.per_second_rate_limit_image = (120 - per_second_limit_image_buffer) / 60
+        self.min_interval_image = 1 / self.per_second_rate_limit_image
+
         self.last_text_time = 0
         self.last_image_time = 0
-        per_second_limit_text_buffer = 2
-        self.per_second_rate_limit_text = (120-per_second_limit_text_buffer)/60
-        per_second_limit_image_buffer = 2
-        self.per_second_rate_limit_image = (120-per_second_limit_image_buffer)/60
 
     def encode_image(self, images, normalize: bool = True):
         processed_images = [self._image_to_base64_data_url(img) for img in images]
-
         embeddings = []
-        
+
         for im in processed_images:
-            if time.time() - self.last_image_time < self.per_second_rate_limit_image:
-                time.sleep(1/self.per_second_rate_limit_image)
+            # Rate limiting logic
+            time_since_last = time.time() - self.last_image_time
+            if time_since_last < self.min_interval_image:
+                sleep_duration = self.min_interval_image - time_since_last
+                time.sleep(max(0, sleep_duration))
 
-            for i in range(self.retry_limit):
+            for _ in range(self.retry_limit):
                 try:
-                    # image to bytes 
+                    # Convert image to bytes
                     im_bytes = base64.b64decode(im.split(",")[1])
-
-                    # this is the worst documented SDK in existence
-                    horrendous_google_sdk_image_object = VImage(image_bytes=im_bytes)
+                    image_object = VImage(image_bytes=im_bytes)
 
                     resp = self.google_model.get_embeddings(
-                        image=horrendous_google_sdk_image_object,
+                        image=image_object,
                         dimension=self.embedding_dimension,
                     )
 
-                    image_embedding = resp.image_embedding
-                    embeddings.append(image_embedding)
+                    embeddings.append(resp.image_embedding)
                     self.last_image_time = time.time()
                     break
                 except Exception as e:
@@ -430,46 +438,41 @@ class GoogleMultimodalEmbed(E2ECLIP):
                     continue
 
         tensor_embeddings = torch.tensor(embeddings, dtype=torch.float32, device=self.device)
-
         if normalize:
             tensor_embeddings = F.normalize(tensor_embeddings, dim=-1)
-
         return tensor_embeddings
 
     def encode_text(self, text, normalize: bool = True):
-        if time.time() - self.last_text_time < self.per_second_rate_limit_text:
-            time.sleep(1/self.per_second_rate_limit_text)
-
         embeddings = []
+
         for txt in text:
-            for i in range(self.retry_limit):
+            # Rate limiting logic
+            time_since_last = time.time() - self.last_text_time
+            if time_since_last < self.min_interval_text:
+                sleep_duration = self.min_interval_text - time_since_last
+                time.sleep(max(0, sleep_duration))
+
+            for _ in range(self.retry_limit):
                 try:
                     resp = self.google_model.get_embeddings(
                         contextual_text=txt,
                         dimension=self.embedding_dimension,
                     )
-
-                    text_embedding = resp.text_embedding
-                    embeddings.append(text_embedding)
+                    embeddings.append(resp.text_embedding)
                     self.last_text_time = time.time()
                     break
                 except Exception as e:
                     time.sleep(self.retry_delay)
                     print(e)
                     continue
-        
-        tensor_embeddings = torch.tensor(embeddings, dtype=torch.float32, device=self.device)
 
+        tensor_embeddings = torch.tensor(embeddings, dtype=torch.float32, device=self.device)
         if normalize:
             tensor_embeddings = F.normalize(tensor_embeddings, dim=-1)
-
         return tensor_embeddings
 
     def e2e_encode_text(self, text: str, normalize: bool = True) -> torch.Tensor:
-        embedding = self.encode_text(text, normalize=normalize)
-        return embedding
+        return self.encode_text([text], normalize=normalize)
 
     def e2e_encode_image(self, images, normalize: bool = True) -> torch.Tensor:
-        embedding = self.encode_image(images, normalize=normalize)
-        return embedding
-
+        return self.encode_image(images, normalize=normalize)
