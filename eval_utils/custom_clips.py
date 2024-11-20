@@ -393,19 +393,8 @@ class GoogleMultimodalEmbed(E2ECLIP):
 
         self.google_model = MultiModalEmbeddingModel.from_pretrained(model)
 
-        self.retry_limit = 12
-        self.retry_delay = 5
-
-        per_second_limit_text_buffer = 2
-        self.per_second_rate_limit_text = (120 - per_second_limit_text_buffer) / 60
-        self.min_interval_text = 1 / self.per_second_rate_limit_text
-
-        per_second_limit_image_buffer = 2
-        self.per_second_rate_limit_image = (120 - per_second_limit_image_buffer) / 60
-        self.min_interval_image = 1 / self.per_second_rate_limit_image
-
-        self.last_text_time = 0
-        self.last_image_time = 0
+        self.retry_limit = 1000000000
+        self.retry_delay = 10
 
     def encode_image(self, images, normalize: bool = True):
         processed_images = [self._image_to_base64_data_url(img) for img in images]
@@ -413,11 +402,6 @@ class GoogleMultimodalEmbed(E2ECLIP):
 
         for im in processed_images:
             # Rate limiting logic
-            time_since_last = time.time() - self.last_image_time
-            if time_since_last < self.min_interval_image:
-                sleep_duration = self.min_interval_image - time_since_last
-                time.sleep(max(0, sleep_duration))
-
             for _ in range(self.retry_limit):
                 try:
                     # Convert image to bytes
@@ -447,11 +431,6 @@ class GoogleMultimodalEmbed(E2ECLIP):
 
         for txt in text:
             # Rate limiting logic
-            time_since_last = time.time() - self.last_text_time
-            if time_since_last < self.min_interval_text:
-                sleep_duration = self.min_interval_text - time_since_last
-                time.sleep(max(0, sleep_duration))
-
             for _ in range(self.retry_limit):
                 try:
                     resp = self.google_model.get_embeddings(
